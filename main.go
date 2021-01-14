@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/autoscaling"
 	"github.com/aws/aws-sdk-go/service/ecs"
 )
 
@@ -67,16 +69,21 @@ func handler(ctx context.Context, event *events.AutoScalingEvent) error {
 		return fmt.Errorf("[error] unexpected transision: %s", transition)
 	}
 
+	cluster, err := detectECSCluster(sess, asgName)
+	if err != nil {
+		return err
+	}
+	log.Printf("[info] ECS cluster detected: %s", cluster)
+
 	// determine the container instance arn by EC2 Instance ID
-	cluster := aws.String(asgName)
 	list, err := svc.ListContainerInstances(&ecs.ListContainerInstancesInput{
-		Cluster: cluster, // ASG name == Cluster name
+		Cluster: &cluster,
 	})
 	if err != nil {
 		return err
 	}
 	desc, err := svc.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
-		Cluster:            cluster,
+		Cluster:            &cluster,
 		ContainerInstances: list.ContainerInstanceArns,
 	})
 	if err != nil {
@@ -97,7 +104,7 @@ func handler(ctx context.Context, event *events.AutoScalingEvent) error {
 
 	// draining
 	_, err = svc.UpdateContainerInstancesState(&ecs.UpdateContainerInstancesStateInput{
-		Cluster:            cluster,
+		Cluster:            &cluster,
 		Status:             aws.String("DRAINING"),
 		ContainerInstances: []*string{containerInstanceArn},
 	})
@@ -109,7 +116,7 @@ func handler(ctx context.Context, event *events.AutoScalingEvent) error {
 	// wait for all tasks exited
 	for {
 		tasks, err := svc.ListTasks(&ecs.ListTasksInput{
-			Cluster:           cluster,
+			Cluster:           &cluster,
 			ContainerInstance: containerInstanceArn,
 		})
 		if err != nil {
@@ -127,4 +134,27 @@ func handler(ctx context.Context, event *events.AutoScalingEvent) error {
 
 	// TODO complete-lifecycle-action
 	return nil
+}
+
+func detectECSCluster(sess *session.Session, asgName string) (string, error) {
+	var cluster string
+	svc := autoscaling.New(sess)
+	out, err := svc.DescribeAutoScalingGroups(&autoscaling.DescribeAutoScalingGroupsInput{
+		AutoScalingGroupNames: []*string{aws.String(asgName)},
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(out.AutoScalingGroups) == 0 {
+		return "", fmt.Errorf("AutoScalingGroup name %s is not found", asgName)
+	}
+	for _, tag := range out.AutoScalingGroups[0].Tags {
+		if strings.ToLower(aws.StringValue(tag.Key)) == "cluster" {
+			cluster = aws.StringValue(tag.Value)
+		}
+	}
+	if cluster == "" {
+		return "", errors.New("failed to detect cluster from ASG tag Key=cluster")
+	}
+	return cluster, nil
 }
