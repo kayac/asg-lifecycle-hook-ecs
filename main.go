@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 )
 
+// LifecycleTransition is transition value.
 const LifecycleTransition = "autoscaling:EC2_INSTANCE_TERMINATING"
 
 func main() {
