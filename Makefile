@@ -5,7 +5,7 @@ build: *.go go.*
 	go build
 
 build.lambda: *.go go.*
-	GOARCH=amd64 GOOS=linux go build -o bootstrap
+	CGO_ENABLED=0 GOARCH=amd64 GOOS=linux go build -o bootstrap
 
 test:
 	go clean -testcache
