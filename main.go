@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
