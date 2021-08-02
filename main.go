@@ -139,6 +139,7 @@ func drainingInstance(svc *ecs.ECS, cluster, instanceID string) error {
 		tasks, err := svc.ListTasks(&ecs.ListTasksInput{
 			Cluster:           &cluster,
 			ContainerInstance: &containerInstanceArn,
+			DesiredStatus:     aws.String("RUNNING"),
 		})
 		if err != nil {
 			log.Printf("[warn] %s", err)
@@ -154,7 +155,44 @@ func drainingInstance(svc *ecs.ECS, cluster, instanceID string) error {
 			containerInstanceArn,
 		)
 	}
-	log.Printf("[info] all tasks exited on %s %s", instanceID, containerInstanceArn)
+	log.Printf("[info] no any tasks that have desired status RUNNING on %s %s", instanceID, containerInstanceArn)
+
+	for {
+		time.Sleep(10 * time.Second)
+		ls, err := svc.ListTasks(&ecs.ListTasksInput{
+			Cluster:           &cluster,
+			ContainerInstance: &containerInstanceArn,
+			DesiredStatus:     aws.String("STOPPED"),
+		})
+		if err != nil {
+			log.Printf("[warn] %s", err)
+			continue
+		}
+		if len(ls.TaskArns) == 0 {
+			break
+		}
+		tasks, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
+			Cluster: &cluster,
+			Tasks:   ls.TaskArns,
+		})
+		if err != nil {
+			log.Printf("[warn] %s", err)
+			continue
+		}
+		stopped := 0
+		for _, task := range tasks.Tasks {
+			s := aws.StringValue(task.LastStatus)
+			log.Printf("[info] task %s last status: %s", *task.TaskArn, s)
+			if s == "STOPPED" {
+				stopped++
+			}
+		}
+		if stopped == len(tasks.Tasks) {
+			break
+		}
+	}
+
+	log.Printf("[info] all tasks stopped on %s %s", instanceID, containerInstanceArn)
 	return nil
 }
 

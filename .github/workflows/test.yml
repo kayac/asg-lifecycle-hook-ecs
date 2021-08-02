@@ -5,7 +5,7 @@ jobs:
     strategy:
       matrix:
         go:
-          - 1.15
+          - 1.16
     name: Build
     runs-on: ubuntu-20.04
     steps:
