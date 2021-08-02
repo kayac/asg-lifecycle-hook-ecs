@@ -155,7 +155,7 @@ func drainingInstance(svc *ecs.ECS, cluster, instanceID string) error {
 			containerInstanceArn,
 		)
 	}
-	log.Printf("[info] no any tasks which desired status RUNNING on %s %s", instanceID, containerInstanceArn)
+	log.Printf("[info] no any tasks that have desired status RUNNING on %s %s", instanceID, containerInstanceArn)
 
 	for {
 		time.Sleep(10 * time.Second)
