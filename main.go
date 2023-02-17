@@ -87,7 +87,7 @@ func handler(ctx context.Context, event *events.AutoScalingEvent) error {
 	if err := drainingInstance(ecsSvc, cluster, instanceID); err != nil {
 		return err
 	}
-	if err := complate(asgSvc, event); err != nil {
+	if err := complete(asgSvc, event); err != nil {
 		return err
 	}
 
@@ -219,7 +219,7 @@ func detectECSCluster(svc *autoscaling.AutoScaling, asgName string) (string, err
 	return cluster, nil
 }
 
-func complate(svc *autoscaling.AutoScaling, event *events.AutoScalingEvent) error {
+func complete(svc *autoscaling.AutoScaling, event *events.AutoScalingEvent) error {
 	if event.Detail["LifecycleActionToken"] == nil {
 		log.Println("[info] skip complete")
 		return nil
